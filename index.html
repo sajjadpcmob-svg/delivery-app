@@ -26,6 +26,88 @@ body {
   min-height: 100vh;
 }
 
+/* ===== Master Gate (App Lock) ===== */
+.master-gate {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, #0d1b2a, #1a3a5c);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.master-gate.hidden { display: none; }
+.master-gate-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  animation: gatePulse 2s infinite;
+}
+@keyframes gatePulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.master-gate-title {
+  color: #8ecae6;
+  font-size: 26px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.master-gate-subtitle {
+  color: #a0b4c8;
+  font-size: 15px;
+  margin-bottom: 32px;
+  text-align: center;
+}
+.master-gate-input {
+  width: 280px;
+  max-width: 80%;
+  padding: 14px 18px;
+  border: 2px solid #2a5a8c;
+  border-radius: 12px;
+  font-size: 22px;
+  text-align: center;
+  background: #0f2744;
+  color: #e0e8f0;
+  outline: none;
+  letter-spacing: 6px;
+  -webkit-text-security: disc;
+}
+.master-gate-input:focus { border-color: #8ecae6; box-shadow: 0 0 12px rgba(142,202,230,0.3); }
+.master-gate-btn {
+  margin-top: 18px;
+  padding: 14px 50px;
+  font-size: 20px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #28a745, #1e7e34);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 14px rgba(40,167,69,0.4);
+}
+.master-gate-btn:active { transform: scale(0.96); }
+.master-gate-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(40,167,69,0.5); }
+.master-gate-error {
+  color: #ff6b6b;
+  font-size: 15px;
+  margin-top: 14px;
+  display: none;
+  text-align: center;
+}
+.master-gate-error.show { display: block; }
+.master-gate-attempts {
+  color: #ff9f43;
+  font-size: 13px;
+  margin-top: 6px;
+  display: none;
+  text-align: center;
+}
+.master-gate-attempts.show { display: block; }
+
 /* ===== Login Screen ===== */
 .login-overlay {
   position: fixed;
@@ -1070,8 +1152,19 @@ input#sendLoose:focus.loose-empty {
 <div class="sync-indicator" id="syncIndicator">🔄 همگام‌سازی...</div>
 <div class="notif-banner" id="notifBanner" style="display:none;"></div>
 
+<!-- ============ MASTER GATE (App Lock) ============ -->
+<div class="master-gate" id="masterGate">
+  <div class="master-gate-icon">🔒</div>
+  <div class="master-gate-title">دسترسی محدود</div>
+  <div class="master-gate-subtitle">برای ورود رمز عبور را وارد کنید</div>
+  <input type="password" class="master-gate-input" id="masterGateInput" placeholder="••••" onkeydown="if(event.key==='Enter')submitMasterGate()">
+  <button class="master-gate-btn" onclick="submitMasterGate()">ورود</button>
+  <div class="master-gate-error" id="masterGateError">رمز عبور اشتباه است</div>
+  <div class="master-gate-attempts" id="masterGateAttempts"></div>
+</div>
+
 <!-- ============ LOGIN SCREEN ============ -->
-<div class="login-overlay" id="loginScreen">
+<div class="login-overlay" id="loginScreen" style="display:none;">
   <div class="login-title">🚛 مدیریت ارسال کالا</div>
   <div class="login-subtitle">حساب کاربری خود را انتخاب کنید</div>
   <div style="text-align:center;margin-bottom:12px;">
@@ -1141,6 +1234,7 @@ input#sendLoose:focus.loose-empty {
     <button class="header-switch-btn" onclick="forceReloadFromDb()" title="بارگذاری مجدد داده‌ها از سرور">📥 همگام‌سازی</button>
     <button class="header-switch-btn" onclick="openChangePassword()">🔑 تغییر رمز</button>
     <button class="header-switch-btn" onclick="switchUser()">🔄 تغییر حساب</button>
+    <button class="header-switch-btn" style="background:#c0392b;" onclick="lockApp()">🔒 قفل اپ</button>
   </div>
   <div class="header-status-row">
     <span class="conn-status" id="connStatus" data-status="offline">
@@ -2463,6 +2557,61 @@ var USER_KEY = 'delivery_current_user';
 var currentUser = '';
 
 /* =============================================
+   MASTER GATE (App Lock) - First barrier
+   ============================================= */
+var MASTER_PASSWORD = '7890';
+var _gateAttempts = 0;
+var _gateLocked = false;
+var _gateLockUntil = 0;
+
+function submitMasterGate() {
+  if(_gateLocked) {
+    var remaining = Math.ceil((_gateLockUntil - Date.now()) / 1000);
+    document.getElementById('masterGateAttempts').textContent = 'صبر کنید... ' + remaining + ' ثانیه';
+    return;
+  }
+  var input = document.getElementById('masterGateInput').value;
+  if(input === MASTER_PASSWORD) {
+    _gateAttempts = 0;
+    document.getElementById('masterGate').className = 'master-gate hidden';
+    document.getElementById('loginScreen').style.display = '';
+  } else {
+    _gateAttempts++;
+    document.getElementById('masterGateError').className = 'master-gate-error show';
+    document.getElementById('masterGateInput').value = '';
+    document.getElementById('masterGateInput').focus();
+    if(_gateAttempts >= 5) {
+      _gateLocked = true;
+      _gateLockUntil = Date.now() + 30000;
+      document.getElementById('masterGateAttempts').className = 'master-gate-attempts show';
+      document.getElementById('masterGateAttempts').textContent = 'بیش از حد تلاش! ۳۰ ثانیه صبر کنید';
+      setTimeout(function(){
+        _gateLocked = false;
+        _gateAttempts = 0;
+        document.getElementById('masterGateAttempts').className = 'master-gate-attempts';
+        document.getElementById('masterGateError').className = 'master-gate-error';
+      }, 30000);
+    } else {
+      document.getElementById('masterGateAttempts').className = 'master-gate-attempts show';
+      document.getElementById('masterGateAttempts').textContent = 'تلاش ناموفق: ' + _gateAttempts + ' از ۵';
+    }
+  }
+}
+
+function lockApp() {
+  currentUser = '';
+  _cache['delivery_current_user'] = [];
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('loginScreen').className = 'login-overlay';
+  document.getElementById('masterGate').className = 'master-gate';
+  document.getElementById('masterGateInput').value = '';
+  document.getElementById('masterGateError').className = 'master-gate-error';
+  document.getElementById('masterGateAttempts').className = 'master-gate-attempts';
+  stopSyncTimer();
+}
+
+/* =============================================
    USER / LOGIN MANAGEMENT
    ============================================= */
 function selectUser(role) {
@@ -2481,6 +2630,7 @@ function switchUser() {
   currentUser = '';
   _cache['delivery_current_user'] = [];
   document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loginScreen').style.display = '';
   document.getElementById('loginScreen').className = 'login-overlay';
 }
 
