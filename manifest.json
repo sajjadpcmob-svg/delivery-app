@@ -1,0 +1,25 @@
+{
+  "name": "مدیریت ارسال کالا - تحویل/تحول",
+  "short_name": "تحویل/تحول",
+  "description": "اپلیکیشن مدیریت ارسال و دریافت کالا بین حساب تحویل و تحول",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a3a5c",
+  "theme_color": "#1a3a5c",
+  "dir": "rtl",
+  "lang": "fa",
+  "icons": [
+    { "src": "icon-72.png", "sizes": "72x72", "type": "image/png" },
+    { "src": "icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "icon-144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-384.png", "sizes": "384x384", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "logistics"],
+  "prefer_related_applications": false
+}
