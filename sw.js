@@ -1,5 +1,5 @@
-/* Service Worker v3 — تحویل/تحول PWA */
-var CACHE_NAME = 'delivery-app-v3';
+/* Service Worker v4 — تحویل/تحول PWA */
+var CACHE_NAME = 'delivery-app-v4';
 var SHELL_URLS = [
   './',
   './index.html',

@@ -1168,7 +1168,7 @@ input#sendLoose:focus.loose-empty {
   <div class="login-title">🚛 مدیریت ارسال کالا</div>
   <div class="login-subtitle">حساب کاربری خود را انتخاب کنید</div>
   <div style="text-align:center;margin-bottom:12px;">
-    <span class="conn-status" id="connStatusLogin" data-status="offline" style="font-size:13px;">
+    <span class="conn-status" id="connStatusLogin" data-status="offline" style="font-size:13px;cursor:pointer;" onclick="toggleDiagPanel()" title="عیب‌یابی اتصال">
       <span class="conn-dot"></span>
       <span id="connTextLogin">در حال اتصال...</span>
     </span>
@@ -1237,7 +1237,7 @@ input#sendLoose:focus.loose-empty {
     <button class="header-switch-btn" style="background:#c0392b;" onclick="lockApp()">🔒 قفل اپ</button>
   </div>
   <div class="header-status-row">
-    <span class="conn-status" id="connStatus" data-status="offline">
+    <span class="conn-status" id="connStatus" onclick="toggleDiagPanel()" title="عیب‌یابی اتصال" style="cursor:pointer;" data-status="offline">
       <span class="conn-dot"></span>
       <span id="connText">آفلاین</span>
     </span>
@@ -1808,6 +1808,294 @@ _cache['delivery_vehicles'] = [];
 _cache['delivery_deliveries'] = [];
 _cache['delivery_dispatches'] = [];
 _cache['delivery_current_user'] = [];
+
+/* =============================================
+   CONNECTIVITY DIAGNOSTIC TOOL
+   ============================================= */
+var _diagResults = {};
+var _diagPanelShown = false;
+
+function _testSupabaseConnection() {
+  _diagResults = {
+    browserOnline: navigator.onLine,
+    swSupported: ('serviceWorker' in navigator),
+    swReg: null,
+    supabaseUrl: SUPABASE_URL,
+    supabaseReachable: null,
+    supabasePing: null,
+    cdnReachable: null,
+    cdnPing: null,
+    apiHealth: null,
+    apiHealthTime: null,
+    timestamp: new Date().toISOString()
+  };
+
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      _diagResults.swReg = reg ? { scope: reg.scope, active: !!(reg.active), waiting: !!(reg.waiting) } : null;
+      _updateDiagPanel();
+    }).catch(function() {});
+  }
+
+  var t1 = Date.now();
+  fetch(SUPABASE_URL + '/rest/v1/products?select=id&limit=1', {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    },
+    mode: 'cors'
+  }).then(function(r) {
+    _diagResults.supabasePing = Date.now() - t1;
+    if(r.ok) {
+      _diagResults.supabaseReachable = true;
+    } else {
+      _diagResults.supabaseReachable = false;
+      _diagResults.supabaseError = 'HTTP ' + r.status + ' ' + r.statusText;
+    }
+    _updateDiagPanel();
+  }).catch(function(err) {
+    _diagResults.supabasePing = Date.now() - t1;
+    _diagResults.supabaseReachable = false;
+    _diagResults.supabaseError = err.message || 'Network error';
+    _updateDiagPanel();
+  });
+
+  var t2 = Date.now();
+  fetch(SUPABASE_URL + '/', {
+    method: 'GET',
+    mode: 'no-cors'
+  }).then(function() {
+    _diagResults.apiHealthTime = Date.now() - t2;
+    _diagResults.apiHealth = true;
+    _updateDiagPanel();
+  }).catch(function(err) {
+    _diagResults.apiHealthTime = Date.now() - t2;
+    _diagResults.apiHealth = false;
+    _diagResults.apiHealthError = err.message || 'Network error';
+    _updateDiagPanel();
+  });
+
+  var cdnUrl = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+  var t3 = Date.now();
+  fetch(cdnUrl, { method: 'HEAD', mode: 'no-cors' }).then(function() {
+    _diagResults.cdnPing = Date.now() - t3;
+    _diagResults.cdnReachable = true;
+    _updateDiagPanel();
+  }).catch(function(err) {
+    _diagResults.cdnPing = Date.now() - t3;
+    _diagResults.cdnReachable = false;
+    _diagResults.cdnError = err.message || 'Network error';
+    _updateDiagPanel();
+  });
+
+  setTimeout(function() {
+    if(!_diagPanelShown) {
+      _createDiagPanel();
+      _diagPanelShown = true;
+    }
+    _updateDiagPanel();
+  }, 1500);
+}
+
+function _createDiagPanel() {
+  var old = document.getElementById('diagOverlay');
+  if(old) old.parentNode.removeChild(old);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'diagOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.6);display:none;direction:rtl;align-items:center;justify-content:center;';
+
+  var panel = document.createElement('div');
+  panel.id = 'diagPanel';
+  panel.style.cssText = 'width:90%;max-width:420px;background:#1a1a2e;border:1px solid #16213e;border-radius:14px;padding:20px;font-family:Vazirmatn,sans-serif;color:#e0e0e0;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-height:85vh;overflow-y:auto;';
+
+  var title = document.createElement('div');
+  title.style.cssText = 'font-size:18px;font-weight:700;color:#00d4aa;text-align:center;margin-bottom:16px;';
+  title.innerHTML = '\u{1F50D} \u0639\u06CC\u0628\u200C\u06CC\u0627\u0628\u06CC \u0627\u062A\u0635\u0627\u0644';
+  panel.appendChild(title);
+
+  var body = document.createElement('div');
+  body.id = 'diagBody';
+  body.style.cssText = 'font-size:13px;line-height:2;';
+  panel.appendChild(body);
+
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;';
+
+  var btnClose = document.createElement('button');
+  btnClose.textContent = '\u0628\u0633\u062A\u0646';
+  btnClose.style.cssText = 'padding:8px 20px;background:#16213e;color:#aaa;border:none;border-radius:8px;font-family:Vazirmatn;font-size:13px;cursor:pointer;';
+  btnClose.onclick = function() { overlay.style.display = 'none'; };
+  btnRow.appendChild(btnClose);
+
+  var btnRerun = document.createElement('button');
+  btnRerun.innerHTML = '\u{1F504} \u062A\u0633\u062A \u0645\u062C\u062F\u062F';
+  btnRerun.style.cssText = 'padding:8px 20px;background:#0f3460;color:#00d4aa;border:none;border-radius:8px;font-family:Vazirmatn;font-size:13px;cursor:pointer;';
+  btnRerun.onclick = function() {
+    _diagResults.supabaseReachable = null;
+    _diagResults.cdnReachable = null;
+    _diagResults.apiHealth = null;
+    _diagResults.supabaseError = null;
+    _diagResults.cdnError = null;
+    _diagResults.apiHealthError = null;
+    _updateDiagPanel();
+    _testSupabaseConnection();
+  };
+  btnRow.appendChild(btnRerun);
+
+  var btnClearCache = document.createElement('button');
+  btnClearCache.innerHTML = '\u{1F5D1}\uFE0F \u067E\u0627\u06A9\u0633\u0627\u0632\u06CC \u06A9\u0634 \u0648 \u0628\u0627\u0631\u06AF\u0630\u0627\u0631\u06CC \u0645\u062C\u062F\u062F';
+  btnClearCache.style.cssText = 'padding:8px 16px;background:#e94560;color:#fff;border:none;border-radius:8px;font-family:Vazirmatn;font-size:12px;cursor:pointer;';
+  btnClearCache.onclick = function() { _forceClearAndReload(); };
+  btnRow.appendChild(btnClearCache);
+
+  var btnCopy = document.createElement('button');
+  btnCopy.innerHTML = '\u{1F4CB} \u06A9\u067E\u06CC \u0646\u062A\u0627\u06CC\u062C';
+  btnCopy.style.cssText = 'padding:8px 16px;background:#16213e;color:#aaa;border:none;border-radius:8px;font-family:Vazirmatn;font-size:12px;cursor:pointer;';
+  btnCopy.onclick = function() {
+    var text = _getDiagText();
+    if(navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() { showToast('\u0646\u062A\u0627\u06CC\u062C \u06A9\u067E\u06CC \u0634\u062F'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('\u0646\u062A\u0627\u06CC\u062C \u06A9\u067E\u06CC \u0634\u062F');
+    }
+  };
+  btnRow.appendChild(btnCopy);
+
+  panel.appendChild(btnRow);
+  overlay.appendChild(panel);
+
+  overlay.addEventListener('click', function(e) {
+    if(e.target === overlay) overlay.style.display = 'none';
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function _updateDiagPanel() {
+  var body = document.getElementById('diagBody');
+  if(!body) return;
+
+  var d = _diagResults;
+  var html = '';
+
+  html += '<div style="border-bottom:1px solid #16213e;padding-bottom:8px;margin-bottom:8px;">';
+  html += '<b>\u{1F310} \u0648\u0636\u0639\u06CC\u062A \u0645\u0631\u0648\u0631\u06AF\u0631:</b> ' + (d.browserOnline ? '\u2705 \u0622\u0646\u0644\u0627\u06CC\u0646' : '\u274C \u0622\u0641\u0644\u0627\u06CC\u0646');
+  html += '</div>';
+
+  html += '<div style="border-bottom:1px solid #16213e;padding-bottom:8px;margin-bottom:8px;">';
+  html += '<b>\u2699\uFE0F \u0633\u0631\u0648\u06CC\u0633 \u0648\u0631\u06A9\u0631:</b> ';
+  if(!d.swSupported) { html += '\u274C \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0646\u0645\u06CC\u200C\u0634\u0648\u062F'; }
+  else if(d.swReg === null) { html += '\u23F3 \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0631\u0633\u06CC...'; }
+  else if(!d.swReg) { html += '\u26A0\uFE0F \u062B\u0628\u062A \u0646\u0634\u062F\u0647'; }
+  else { html += '\u2705 \u0641\u0639\u0627\u0644 (scope: ' + d.swReg.scope + (d.swReg.waiting ? ' | \u26A0\uFE0F \u0646\u0633\u062E\u0647 \u062C\u062F\u06CC\u062F \u0645\u0646\u062A\u0638\u0631)' : ')'); }
+  html += '</div>';
+
+  html += '<div style="border-bottom:1px solid #16213e;padding-bottom:8px;margin-bottom:8px;">';
+  html += '<b>\u{1F517} \u0633\u0631\u0648\u0631 Supabase:</b> ';
+  if(d.supabaseReachable === null || d.supabaseReachable === undefined) { html += '\u23F3 \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0631\u0633\u06CC...'; }
+  else if(d.supabaseReachable) { html += '\u2705 \u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC (' + d.supabasePing + 'ms)'; }
+  else { html += '\u274C \u063A\u06CC\u0631\u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC' + (d.supabaseError ? ' (' + d.supabaseError + ')' : '') + (d.supabasePing ? ' [' + d.supabasePing + 'ms]' : ''); }
+  html += '</div>';
+
+  html += '<div style="border-bottom:1px solid #16213e;padding-bottom:8px;margin-bottom:8px;">';
+  html += '<b>\u{1F3E5} Health API:</b> ';
+  if(d.apiHealth === null || d.apiHealth === undefined) { html += '\u23F3 \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0631\u0633\u06CC...'; }
+  else if(d.apiHealth) { html += '\u2705 \u067E\u0627\u0633\u062E \u062F\u0627\u062F (' + d.apiHealthTime + 'ms)'; }
+  else { html += '\u274C \u067E\u0627\u0633\u062E \u0646\u0645\u06CC\u200C\u062F\u0647\u062F' + (d.apiHealthError ? ' (' + d.apiHealthError + ')' : '') + (d.apiHealthTime ? ' [' + d.apiHealthTime + 'ms]' : ''); }
+  html += '</div>';
+
+  html += '<div style="border-bottom:1px solid #16213e;padding-bottom:8px;margin-bottom:8px;">';
+  html += '<b>\u{1F4E6} CDN (SheetJS):</b> ';
+  if(d.cdnReachable === null || d.cdnReachable === undefined) { html += '\u23F3 \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0631\u0633\u06CC...'; }
+  else if(d.cdnReachable) { html += '\u2705 \u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC (' + d.cdnPing + 'ms)'; }
+  else { html += '\u274C \u063A\u06CC\u0631\u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC' + (d.cdnError ? ' (' + d.cdnError + ')' : ''); }
+  html += '</div>';
+
+  /* Diagnosis summary */
+  html += '<div style="margin-top:10px;padding:10px;background:#0f3460;border-radius:8px;font-size:12px;">';
+  if(!d.browserOnline) {
+    html += '\u{1F534} <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u0645\u0631\u0648\u0631\u06AF\u0631 \u0634\u0645\u0627 \u0622\u0641\u0644\u0627\u06CC\u0646 \u0627\u0633\u062A. \u0627\u062A\u0635\u0627\u0644 \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u062E\u0648\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F.';
+  } else if(d.supabaseReachable === false && d.cdnReachable === false) {
+    html += '\u{1F534} <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u0647\u06CC\u0686 \u0633\u0631\u0648\u0631 \u062E\u0627\u0631\u062C\u06CC \u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC \u0646\u06CC\u0633\u062A. \u0627\u062D\u062A\u0645\u0627\u0644\u0627\u064B \u0645\u0634\u06A9\u0644 \u0627\u0632 \u0641\u06CC\u0644\u062A\u0631\u06CC\u0646\u06AF \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u0627\u06CC\u0631\u0627\u0646 \u0627\u0633\u062A. \u0627\u0632 VPN \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F \u06CC\u0627 \u0628\u0627 \u0627\u067E\u0631\u0627\u062A\u0648\u0631 \u062F\u06CC\u06AF\u0631 \u0627\u0645\u062A\u062D\u0627\u0646 \u06A9\u0646\u06CC\u062F.';
+  } else if(d.supabaseReachable === false && d.cdnReachable !== false) {
+    html += '\u{1F7E0} <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u0641\u0642\u0637 Supabase \u0642\u0627\u0628\u0644 \u062F\u0633\u062A\u0631\u0633\u06CC \u0646\u06CC\u0633\u062A. \u0627\u062D\u062A\u0645\u0627\u0644\u0627\u064B \u062F\u0627\u0645\u0646\u0647 supabase.co \u062F\u0631 \u0627\u06CC\u0631\u0627\u0646 \u0641\u06CC\u0644\u062A\u0631 \u0634\u062F\u0647 \u0627\u0633\u062A. \u0627\u0632 VPN \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.';
+  } else if(d.supabaseReachable === true && d.apiHealth === false) {
+    html += '\u{1F7E1} <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u0627\u062A\u0635\u0627\u0644 \u0628\u0631\u0642\u0631\u0627\u0631 \u0627\u0633\u062A \u0627\u0645\u0627 Realtime \u06A9\u0627\u0631 \u0646\u0645\u06CC\u200C\u06A9\u0646\u062F. \u062F\u06CC\u062A\u0627 \u0630\u062E\u06CC\u0631\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F \u0627\u0645\u0627 \u0647\u0645\u06AF\u0627\u0645\u200C\u0633\u0627\u0632\u06CC \u0644\u062D\u0638\u0647\u200C\u0627\u06CC \u0646\u062F\u0627\u0631\u062F.';
+  } else if(d.supabaseReachable === true) {
+    html += '\u{1F7E2} <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u0627\u062A\u0635\u0627\u0644 \u0628\u0631\u0642\u0631\u0627\u0631 \u0627\u0633\u062A. \u0627\u06AF\u0631 \u0645\u0634\u06A9\u0644\u06CC \u062F\u0627\u0631\u06CC\u062F\u060C \u062F\u06A9\u0645\u0647 \u00AB\u067E\u0627\u06A9\u0633\u0627\u0632\u06CC \u06A9\u0634 \u0648 \u0628\u0627\u0631\u06AF\u0630\u0627\u0631\u06CC \u0645\u062C\u062F\u062F\u00BB \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F.';
+  } else {
+    html += '\u23F3 <b>\u062A\u0634\u062E\u06CC\u0635:</b> \u062F\u0631 \u062D\u0627\u0644 \u0628\u0631\u0631\u0633\u06CC...';
+  }
+  html += '</div>';
+
+  body.innerHTML = html;
+}
+
+function _getDiagText() {
+  var d = _diagResults;
+  var lines = [];
+  lines.push('=== \u0639\u06CC\u0628\u200C\u06CC\u0627\u0628\u06CC \u0627\u062A\u0635\u0627\u0644 ===');
+  lines.push('\u0632\u0645\u0627\u0646: ' + d.timestamp);
+  lines.push('\u0645\u0631\u0648\u0631\u06AF\u0631 \u0622\u0646\u0644\u0627\u06CC\u0646: ' + (d.browserOnline ? '\u0628\u0644\u0647' : '\u062E\u06CC\u0631'));
+  lines.push('\u0633\u0631\u0648\u06CC\u0633 \u0648\u0631\u06A9\u0631: ' + (d.swSupported ? '\u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC' : '\u0628\u062F\u0648\u0646 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC'));
+  lines.push('Supabase: ' + (d.supabaseReachable === null ? '\u0646\u0627\u0645\u0634\u062E\u0635' : (d.supabaseReachable ? '\u0628\u0644\u0647' : '\u062E\u06CC\u0631')));
+  if(d.supabasePing) lines.push('\u067E\u06CC\u0646\u06AF: ' + d.supabasePing + 'ms');
+  if(d.supabaseError) lines.push('\u062E\u0637\u0627: ' + d.supabaseError);
+  lines.push('Health: ' + (d.apiHealth === null ? '\u0646\u0627\u0645\u0634\u062E\u0635' : (d.apiHealth ? '\u0628\u0644\u0647' : '\u062E\u06CC\u0631')));
+  lines.push('CDN: ' + (d.cdnReachable === null ? '\u0646\u0627\u0645\u0634\u062E\u0635' : (d.cdnReachable ? '\u0628\u0644\u0647' : '\u062E\u06CC\u0631')));
+  return lines.join('\n');
+}
+
+function _forceClearAndReload() {
+  showToast('\u062F\u0631 \u062D\u0627\u0644 \u067E\u0627\u06A9\u0633\u0627\u0632\u06CC \u06A9\u0634...');
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      for(var i=0;i<regs.length;i++){
+        regs[i].unregister();
+      }
+      if('caches' in window) {
+        caches.keys().then(function(names) {
+          for(var j=0;j<names.length;j++){
+            caches.delete(names[j]);
+          }
+          localStorage.removeItem('sw-version');
+          setTimeout(function() {
+            window.location.href = './index.html?t=' + Date.now();
+          }, 500);
+        });
+      } else {
+        setTimeout(function() {
+          window.location.href = './index.html?t=' + Date.now();
+        }, 500);
+      }
+    });
+  } else {
+    window.location.href = './index.html?t=' + Date.now();
+  }
+}
+
+function toggleDiagPanel() {
+  var overlay = document.getElementById('diagOverlay');
+  if(!overlay) {
+    if(!_diagPanelShown) {
+      _createDiagPanel();
+      _diagPanelShown = true;
+    }
+    _updateDiagPanel();
+    overlay = document.getElementById('diagOverlay');
+    overlay.style.display = 'flex';
+  } else {
+    overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+  }
+}
 
 /* =============================================
    MULTI-LAYER DATA PROTECTION
@@ -4934,6 +5222,9 @@ function exportTahvolExcel() {
    INIT ON LOAD
    ============================================= */
 (function(){
+  /* Test Supabase connectivity FIRST before anything */
+  _testSupabaseConnection();
+
   /* Initialize Supabase and load all data from database */
   initSupabase(function() {
     /* Migrate existing deliveries: add itemStatus, remainingPallets, remainingLoose, dispatchLog */
@@ -4965,7 +5256,7 @@ function exportTahvolExcel() {
 (function(){
   /* Register Service Worker with cache-busting to force update */
   if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('./sw.js?v=3').then(function(reg){
+    navigator.serviceWorker.register('./sw.js?v=4').then(function(reg){
       console.log('SW registered', reg.scope);
       /* Force update check immediately */
       reg.update();
