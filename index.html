@@ -2,8 +2,20 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>مدیریت ارسال کالا</title>
+
+<!-- PWA: manifest + icons -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1a3a5c">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+
+<!-- iOS standalone support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ارسال کالا">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" async></script>
 <style>
@@ -4787,6 +4799,71 @@ function exportTahvolExcel() {
       }
     }
     if(changed) saveData(DEL_KEY, deliveries);
+  });
+})();
+</script>
+
+<!-- ===== PWA install button ===== -->
+<button id="pwaInstallBtn" style="
+  display:none;
+  position:fixed;
+  bottom:18px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:9999;
+  background:linear-gradient(135deg,#28a745,#1e7e34);
+  color:#fff;
+  border:none;
+  padding:14px 26px;
+  border-radius:30px;
+  font-size:16px;
+  font-weight:bold;
+  font-family:Tahoma,'Segoe UI',sans-serif;
+  box-shadow:0 6px 20px rgba(0,0,0,0.3);
+  cursor:pointer;
+  direction:rtl;
+">📲 نصب اپلیکیشن</button>
+
+<script>
+/* ===== PWA: service worker registration ===== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (err) {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+
+/* ===== PWA: custom install prompt ===== */
+(function () {
+  var deferredPrompt = null;
+  var btn = document.getElementById('pwaInstallBtn');
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+  }
+
+  if (!isStandalone()) {
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      btn.style.display = 'block';
+    });
+  }
+
+  btn.addEventListener('click', function () {
+    btn.style.display = 'none';
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function () {
+      deferredPrompt = null;
+    });
+  });
+
+  window.addEventListener('appinstalled', function () {
+    btn.style.display = 'none';
+    deferredPrompt = null;
   });
 })();
 </script>
