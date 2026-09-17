@@ -1,60 +1,50 @@
-const CACHE_NAME = 'ersal-kala-v1';
-const APP_SHELL = [
-  './',
-  './index.html',
+/* Service Worker — مدیریت ارسال کالا v6.22 */
+
+var CACHE_NAME = 'delivery-app-v6.22';
+var urlsToCache = [
+  './Index.html',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
+self.addEventListener('install', function(event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL).catch(() => {}))
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(urlsToCache);
+    })
   );
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', function(event) {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then(function(names) {
+      return Promise.all(
+        names.filter(function(n) { return n !== CACHE_NAME; })
+             .map(function(n) { return caches.delete(n); })
+      );
+    })
   );
   self.clients.claim();
 });
 
-/* Network-first for navigation/HTML so data stays fresh, cache fallback for offline.
-   Everything else: try cache first, then network. */
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-
-  if (req.method !== 'GET') return;
-
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
-          return res;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
+self.addEventListener('fetch', function(event) {
   event.respondWith(
-    caches.match(req).then((cached) => {
-      return (
-        cached ||
-        fetch(req)
-          .then((res) => {
-            if (res && res.status === 200 && res.type === 'basic') {
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
-            }
-            return res;
-          })
-          .catch(() => cached)
-      );
+    caches.match(event.request).then(function(response) {
+      if (response) return response;
+      return fetch(event.request).then(function(resp) {
+        if (!resp || resp.status !== 200) return resp;
+        var rc = resp.clone();
+        caches.open(CACHE_NAME).then(function(cache) {
+          cache.put(event.request, rc);
+        });
+        return resp;
+      });
+    }).catch(function() {
+      if (event.request.destination === 'document') {
+        return caches.match('./Index.html');
+      }
     })
   );
 });
