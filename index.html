@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مدیریت ارسال کالا v6.22</title>
+<title>مدیریت ارسال کالا v6.23</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d1b2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2301,6 +2301,11 @@ function _doSync(key, data) {
   /* Step 1: Get current IDs in DB to find rows to delete */
   _supabase.from(table).select('id').then(function(result) {
     var dbIds = {};
+    if(result.error) {
+      console.error('Sync select '+table+':', result.error);
+      showToast('خطای اتصال به جدول «'+table+'»: '+(result.error.message||result.error.code||'نامشخص'));
+      updateConnStatus('error','خطای ذخیره');
+    }
     if(!result.error && result.data) {
       for(var i=0;i<result.data.length;i++) dbIds[String(result.data[i].id)] = true;
     }
@@ -2329,7 +2334,11 @@ function _doSync(key, data) {
       var doneCount = 0;
       for(var b=0;b<rows.length;b+=bs){
         _supabase.from(table).upsert(rows.slice(b,b+bs), {onConflict:'id'}).then(function(r){
-          if(r.error) console.error('Sync upsert '+table+':', r.error);
+          if(r.error){
+            console.error('Sync upsert '+table+':', r.error);
+            showToast('خطای ذخیره در «'+table+'»: '+(r.error.message||r.error.code||'نامشخص'));
+            updateConnStatus('error','خطای ذخیره');
+          }
           doneCount++;
           if(doneCount >= batches) {
             if(table === 'dispatches') _syncDispatchProducts(data);
@@ -2348,7 +2357,10 @@ function _doSync(key, data) {
     for(var db=0;db<delBatches.length;db++){
       (function(batch){
         _supabase.from(table).delete().in('id', batch).then(function(r){
-          if(r.error) console.error('Sync delete '+table+':', r.error);
+          if(r.error){
+            console.error('Sync delete '+table+':', r.error);
+            showToast('خطای حذف در «'+table+'»: '+(r.error.message||r.error.code||'نامشخص'));
+          }
           delDone++;
           if(delDone >= delBatches.length) deleteDone();
         });
