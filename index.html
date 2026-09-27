@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مدیریت ارسال کالا v6.23</title>
+<title>مدیریت ارسال کالا v6.22</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d1b2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1189,6 +1189,10 @@ input#sendLoose:focus.loose-empty {
       <button class="btn btn-warning" style="flex:1;" onclick="document.getElementById('importProductFile').click()">📥 ورود دیتا</button>
     </div>
     <input type="file" id="importProductFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importProductsExcel(this)">
+    <div style="margin-top:14px;">
+      <label style="display:block;font-size:15px;font-weight:bold;margin-bottom:4px;color:#0d1b2a;">🔍 جستجوی محصول ثبت‌شده</label>
+      <input type="text" id="productSearch" placeholder="نام یا کد محصول..." oninput="renderProductTable()" autocomplete="off" style="width:100%;padding:12px 14px;font-size:17px;border:2px solid #7a8696;border-radius:10px;background:#fff;color:#222;direction:rtl;outline:none;box-sizing:border-box;">
+    </div>
   </div>
   <div class="table-wrapper">
     <table id="productTable">
@@ -1266,13 +1270,17 @@ input#sendLoose:focus.loose-empty {
     <div class="summary-box">
       مجموع کارتن: <span id="sendTotalCartons">۰</span>
     </div>
+    <div class="checkbox-group" style="margin-top:12px;">
+      <input type="checkbox" id="sendDayProd">
+      <label for="sendDayProd">🟢 تولید روز (محصول تولیدشده امروز)</label>
+    </div>
     <button class="btn btn-success" style="width:100%;margin-top:12px;" onclick="addProductToSendSession()">➕ افزودن محصول</button>
   </div>
 
   <div class="session-list-header" id="sendSessionHeader" style="display:none;">📋 محصولات اضافه‌شده در این ارسال</div>
   <div class="table-wrapper" id="sendSessionWrapper" style="display:none;">
     <table id="sendSessionTable">
-      <thead><tr><th>ردیف</th><th>محصول</th><th>پالت</th><th>پرک</th><th>مجموع</th><th>حذف</th></tr></thead>
+      <thead><tr><th>ردیف</th><th>محصول</th><th>پالت</th><th>پرک</th><th>مجموع</th><th>تولید روز</th><th>حذف</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -1310,6 +1318,20 @@ input#sendLoose:focus.loose-empty {
     <div class="form-group">
       <label>تا تاریخ (شمسی)</label>
       <input type="text" id="reportTo" readonly onclick="openDatePicker('reportTo')" placeholder="🔄 کلیک کنید">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <div class="form-group" style="flex:1;">
+        <label>از ساعت</label>
+        <input type="time" id="reportTimeFrom" style="width:100%;padding:12px 14px;font-size:18px;border:2px solid #7a8696;border-radius:10px;background:#fff;color:#222;direction:ltr;outline:none;box-sizing:border-box;">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>تا ساعت</label>
+        <input type="time" id="reportTimeTo" style="width:100%;padding:12px 14px;font-size:18px;border:2px solid #7a8696;border-radius:10px;background:#fff;color:#222;direction:ltr;outline:none;box-sizing:border-box;">
+      </div>
+    </div>
+    <div class="checkbox-group">
+      <input type="checkbox" id="reportDayProd">
+      <label for="reportDayProd">🟢 فقط تولید روز</label>
     </div>
     <div class="form-group">
       <label>نام محصول</label>
@@ -1354,6 +1376,11 @@ input#sendLoose:focus.loose-empty {
       <input type="time" id="receivedTimeTo" style="width:100%;padding:10px 12px;font-size:16px;border:2px solid #7a8696;border-radius:10px;background:#fff;color:#222;direction:ltr;outline:none;height:44px;box-sizing:border-box;" onchange="renderReceivedProducts()">
     </div>
   </div>
+  <!-- چک باکس تولید روز -->
+  <div class="checkbox-group" style="width:100%;margin:0 auto 8px auto;">
+    <input type="checkbox" id="receivedDayProd" onchange="renderReceivedProducts()">
+    <label for="receivedDayProd">🟢 فقط تولید روز</label>
+  </div>
   <!-- سطر ۳: دکمه‌ها -->
   <div style="width:100%;margin:0 auto 14px auto;display:flex;gap:8px;">
     <button class="btn btn-primary" style="flex:1;margin:0;height:44px;font-size:15px;" onclick="window._receivedViewMode=null;renderReceivedProducts()">🔍 فیلتر</button>
@@ -1377,6 +1404,10 @@ input#sendLoose:focus.loose-empty {
     </div>
     <button class="btn btn-primary" style="margin:0;height:42px;min-width:90px;" onclick="window._dashViewMode=null;renderDashboard()">🔍 فیلتر روز</button>
     <button class="btn btn-warning" style="margin:0;height:42px;min-width:100px;" onclick="window._dashViewMode='cumulative';renderDashboard()">🔄 مشاهده کل</button>
+    <div class="checkbox-group" style="margin:0;width:100%;">
+      <input type="checkbox" id="dashDayProd" onchange="renderDashboard()">
+      <label for="dashDayProd">🟢 فقط تولید روز</label>
+    </div>
   </div>
   <div id="dashboardContent" style="max-width:700px;margin:0 auto;"></div>
 </div>
@@ -1451,6 +1482,10 @@ input#sendLoose:focus.loose-empty {
       <select id="tahvolReportVehicle">
         <option value="">-- همه خودروها --</option>
       </select>
+    </div>
+    <div class="checkbox-group">
+      <input type="checkbox" id="tahvolReportDayProd">
+      <label for="tahvolReportDayProd">🟢 فقط تولید روز</label>
     </div>
     <button class="btn btn-primary" style="width:100%;" onclick="generateTahvolReport()">📊 تولید گزارش</button>
     <button class="btn btn-warning" style="width:100%;margin-top:8px;" onclick="clearTahvolReportFilter()">🔄 نمایش همه</button>
@@ -1836,7 +1871,7 @@ _fieldMaps['deliveries'] = {
   'batchId':'batch_id','prodId':'prod_id','prodName':'prod_name','prodCode':'prod_code',
   'itemStatus':'item_status','dispatchId':'dispatch_id',
   'remainingPallets':'remaining_pallets','remainingLoose':'remaining_loose',
-  'dispatchLog':'dispatch_log'
+  'dispatchLog':'dispatch_log','dayProd':'day_prod'
 };
 _fieldMaps['dispatches'] = {
   'vehicleId':'vehicle_id','dispatchDate':'dispatch_date',
@@ -2794,12 +2829,17 @@ function saveProduct() {
   var newName = name;
   var exportName = name + ' صادرات';
   var exportCode = code ? code + '-E' : '';
+  function _normName(x){ return (x||'').replace(/\s+/g,' ').trim().toLowerCase(); }
+  var nNew = _normName(newName);
+  var nExport = _normName(exportName);
+  var nCode = _normName(code);
   for(var i=0;i<products.length;i++){
-    if(products[i].name === newName) { showToast('این محصول قبلا ثبت شده'); return; }
+    if(_normName(products[i].name) === nNew) { showToast('⚠️ این محصول قبلا ثبت شده'); return; }
+    if(nCode && _normName(products[i].code) === nCode) { showToast('⚠️ محصولی با این کد قبلا ثبت شده'); return; }
   }
   if(isExport) {
     for(var i=0;i<products.length;i++){
-      if(products[i].name === exportName) { showToast('محصول صادرات با این نام قبلا ثبت شده'); return; }
+      if(_normName(products[i].name) === nExport) { showToast('⚠️ محصول صادرات با این نام قبلا ثبت شده'); return; }
     }
   }
   products.push({id: Date.now(), name: newName, code: code, cartons: cartons});
@@ -2818,6 +2858,17 @@ function saveProduct() {
 function renderProductTable() {
   var products = loadData(PROD_KEY);
   products.sort(function(a,b){ return a.name.localeCompare(b.name, 'fa'); });
+  var searchEl = document.getElementById('productSearch');
+  var term = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  if(term) {
+    var flt = [];
+    for(var s=0;s<products.length;s++){
+      var nm = (products[s].name||'').toLowerCase();
+      var cd = (products[s].code||'').toLowerCase();
+      if(nm.indexOf(term) >= 0 || cd.indexOf(term) >= 0) flt.push(products[s]);
+    }
+    products = flt;
+  }
   var tbody = document.querySelector('#productTable tbody');
   if(products.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="color:#555;">محصولی ثبت نشده</td></tr>'; return; }
   var html = '';
@@ -2978,45 +3029,14 @@ var _voiceCountOrder = [];  /* order of first appearance */
 var _vcActiveRecognition = null;
 var _vcListening = false;
 var _vcUserStopped = false;  /* true when user releases PTT button */
-var _vcLastFinalIdx = -1;   /* last final resultIndex processed — counts once per utterance */
+var _vcLastResultIdx = -1;  /* last processed resultIndex — allows same word to count again */
+var _vcLastFinalIdx = -1;  /* last final resultIndex processed */
 
-/* ===== PTT: Push-to-Talk voice count (pure continuous, NO restart, NO ding) ===== */
+/* ===== PTT: Push-to-Talk voice count ===== */
 
 /* Heavy vibration for voice count — strong enough to feel in pocket */
 function _vcVib() {
   if(navigator.vibrate) navigator.vibrate([150, 50, 150, 50, 150]); /* 550ms total */
-}
-
-/* Reset the PTT button to its idle state */
-function _vcResetBtn() {
-  var btn = document.getElementById('voiceCountBtn');
-  if(btn) {
-    btn.textContent = '🎤 نگه‌دارید = شمارش';
-    btn.className = 'btn btn-primary';
-  }
-  var hint = document.getElementById('voiceCountHint');
-  if(hint) hint.style.display = 'none';
-}
-
-/* Central logic: process one recognized phrase.
-   - If phrase matches an ALREADY-counted product → +1 automatically.
-   - Otherwise → search full product list and show the dropdown. */
-function _vcHandlePhrase(phrase) {
-  if(!phrase) return;
-  var autoMatched = _vcTryAutoMatch(phrase);
-  if(autoMatched) {
-    _voiceCounts[autoMatched].count++;
-    _vcVib(); _beepUp();
-    renderVoiceCountTable();
-    showToast(_voiceCounts[autoMatched].prodName + ' → شمارش: ' + toPersian(_voiceCounts[autoMatched].count) + ' (خودکار)');
-    var hint = document.getElementById('voiceCountHint');
-    if(hint) { hint.textContent = '✅ «' + _voiceCounts[autoMatched].prodName + '» +۱ → ' + toPersian(_voiceCounts[autoMatched].count); setTimeout(function(){ if(_vcListening) hint.textContent = '🎤 در حال گوش دادن... صحبت کنید'; }, 1500); }
-    return;
-  }
-  /* No match in current count — search ALL products and show dropdown */
-  document.getElementById('voiceCountSearch').value = phrase;
-  document.getElementById('voiceCountSearchRow').style.display = 'block';
-  filterVoiceCountProducts();
 }
 
 function startVoiceCount() {
@@ -3026,17 +3046,19 @@ function startVoiceCount() {
     showToast('جستجوی صوتی فقط در Chrome و Edge پشتیبانی می‌شود');
     return;
   }
-  /* Guard: if already listening, do nothing (prevents a 2nd start = 2nd ding) */
+  /* If already listening (PTT held), do nothing — prevent double-start */
   if(_vcListening && _vcActiveRecognition) return;
 
   _vcUserStopped = false;
+  _vcLastResultIdx = -1;
   _vcLastFinalIdx = -1;
 
+  /* Create recognition INSIDE user-gesture handler for Chrome permission */
   var recognition = new SR();
   recognition.lang = 'fa-IR';
   recognition.interimResults = true;
   recognition.maxAlternatives = 3;
-  recognition.continuous = true;  /* TRUE continuous — one start(), listens the whole time */
+  recognition.continuous = true;  /* keep listening while button is held — PTT controls stop */
   _vcActiveRecognition = recognition;
   _vcListening = true;
   btn.textContent = '🔴 گوش میده... ول کنید = قطع';
@@ -3044,71 +3066,127 @@ function startVoiceCount() {
   document.getElementById('voiceCountHint').style.display = 'block';
   document.getElementById('voiceCountHint').textContent = '🎤 در حال گوش دادن... صحبت کنید';
 
-  recognition.onresult = function(event) {
-    /* Process each NEW final result once. resultIndex increments per utterance,
-       so saying the same word repeatedly counts each time. */
-    for(var i = event.resultIndex; i < event.results.length; i++) {
-      if(event.results[i].isFinal && i > _vcLastFinalIdx) {
-        var phrase = event.results[i][0].transcript.trim();
-        if(phrase) {
-          _vcLastFinalIdx = i;
-          _vcHandlePhrase(phrase);
-        }
-      }
-    }
-  };
-
-  recognition.onerror = function(event) {
-    if(event.error === 'aborted') return;    /* user released — silent */
-    if(event.error === 'no-speech') return;  /* silence — keep listening, ignore */
-    if(event.error === 'not-allowed') {
-      _vcUserStopped = true;
-      showToast('دسترسی میکروفون رد شد');
-    } else if(event.error === 'audio-capture') {
-      _vcUserStopped = true;
-      showToast('میکروفون یافت نشد');
-    }
-    /* other errors: ignore silently, continuous will recover */
-  };
-
-  recognition.onend = function() {
-    /* If the finger is STILL on the button (_vcUserStopped === false), Chrome
-       just timed out on silence — restart immediately so listening continues
-       seamlessly while held. If the finger was released, stop cleanly.
-       This restart only fires on Chrome's silence-timeout, NOT on every word,
-       so there is no rapid ding-ding loop. */
-    _vcActiveRecognition = null;
-    if(_vcUserStopped) {
-      _vcListening = false;
-      _vcResetBtn();
-    } else {
-      /* finger still held — keep listening */
-      _vcListening = false;
-      startVoiceCount();
-    }
-  };
+  /* Trick: Activate AudioContext with silent output before recognition.start().
+     This can prevent Chrome's system "ding" sound on microphone activation,
+     because Chrome thinks audio is already playing. */
+  try {
+    if(!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var vctx = _audioCtx;
+    if(vctx.state === 'suspended') vctx.resume();
+    var vt = vctx.currentTime;
+    var vosc = vctx.createOscillator();
+    var vgain = vctx.createGain();
+    vosc.type = 'sine';
+    vosc.frequency.setValueAtTime(1, vt); /* 1Hz = inaudible */
+    vgain.gain.setValueAtTime(0.001, vt); /* nearly silent */
+    vgain.gain.exponentialRampToValueAtTime(0.0001, vt + 5);
+    vosc.connect(vgain);
+    vgain.connect(vctx.destination);
+    vosc.start(vt);
+    vosc.stop(vt + 5);
+  } catch(ve) {}
 
   try {
     recognition.start();
   } catch(e) {
     _vcListening = false;
     _vcActiveRecognition = null;
-    _vcResetBtn();
+    btn.textContent = '🎤 نگه‌دارید = شمارش';
+    btn.className = 'btn btn-primary';
+    document.getElementById('voiceCountHint').style.display = 'none';
     showToast('جستجوی صوتی فعال نشد — دوباره نگه دارید');
+    return;
   }
+
+  recognition.onresult = function(event) {
+    /* With continuous=true, each new utterance gets a new resultIndex.
+       We only process FINAL results (isFinal=true) to count once per utterance.
+       This way saying "استیک" three times = three counts. */
+    var bestFinal = '';
+    var bestFinalIdx = -1;
+    for(var i = event.resultIndex; i < event.results.length; i++) {
+      if(event.results[i].isFinal) {
+        var alt = event.results[i][0].transcript.trim();
+        if(alt.length > bestFinal.length) {
+          bestFinal = alt;
+          bestFinalIdx = i;
+        }
+      }
+    }
+    /* Only process new final results we haven't counted yet */
+    if(!bestFinal || bestFinalIdx <= _vcLastFinalIdx) return;
+    _vcLastFinalIdx = bestFinalIdx;
+
+    /* Try to auto-increment EXISTING counted products first */
+    var autoMatched = _vcTryAutoMatch(bestFinal);
+    if(autoMatched) {
+      _voiceCounts[autoMatched].count++;
+      _vcVib(); _beepUp();
+      renderVoiceCountTable();
+      showToast(_voiceCounts[autoMatched].prodName + ' → شمارش: ' + toPersian(_voiceCounts[autoMatched].count) + ' (خودکار)');
+      var hint = document.getElementById('voiceCountHint');
+      if(hint) { hint.textContent = '✅ «' + _voiceCounts[autoMatched].prodName + '» +۱ → ' + toPersian(_voiceCounts[autoMatched].count); setTimeout(function(){ if(!_vcUserStopped) hint.textContent = '🎤 در حال گوش دادن... صحبت کنید'; }, 2000); }
+      return;
+    }
+
+    /* No match in existing count — search ALL products and show dropdown */
+    document.getElementById('voiceCountSearch').value = bestFinal;
+    document.getElementById('voiceCountSearchRow').style.display = 'block';
+    filterVoiceCountProducts();
+  };
+
+  recognition.onerror = function(event) {
+    if(event.error === 'aborted') return; /* PTT released — silent */
+    if(event.error === 'no-speech') {
+      /* no-speech is normal with continuous — do nothing, keep listening */
+      return;
+    } else if(event.error === 'not-allowed') {
+      _vcUserStopped = true;
+      showToast('دسترسی میکروفون رد شد');
+    } else if(event.error === 'audio-capture') {
+      _vcUserStopped = true;
+      showToast('میکروفون یافت نشد');
+    } else {
+      showToast('خطا در شنوایی صوتی');
+    }
+    _vcListening = false;
+    _vcActiveRecognition = null;
+    btn.textContent = '🎤 نگه‌دارید = شمارش';
+    btn.className = 'btn btn-primary';
+    document.getElementById('voiceCountHint').style.display = 'none';
+  };
+
+  recognition.onend = function() {
+    /* PTT: NO auto-restart! With continuous=true Chrome keeps listening.
+       If onend fires, it means Chrome stopped on its own (timeout/no-speech).
+       Only restart if user is STILL holding the button AND it was a no-speech timeout. */
+    _vcListening = false;
+    _vcActiveRecognition = null;
+    if(!_vcUserStopped) {
+      /* User still holding button — restart after 2s to minimize ding-ding.
+         The first start() ding is unavoidable. Restarts only happen on timeout. */
+      setTimeout(function() { if(!_vcUserStopped) startVoiceCount(); }, 3000);
+    } else {
+      var btn = document.getElementById('voiceCountBtn');
+      btn.textContent = '🎤 نگه‌دارید = شمارش';
+      btn.className = 'btn btn-primary';
+      document.getElementById('voiceCountHint').style.display = 'none';
+    }
+  };
 }
 
 function stopVoiceCount() {
-  /* PTT: user released the button — stop listening immediately */
+  /* PTT: user released the button — stop listening */
   _vcUserStopped = true;
   if(_vcActiveRecognition) {
-    try { _vcActiveRecognition.stop(); } catch(e) {
-      try { _vcActiveRecognition.abort(); } catch(e2) {}
-    }
+    try { _vcActiveRecognition.abort(); } catch(e) {}
   }
   _vcListening = false;
   _vcActiveRecognition = null;
-  _vcResetBtn();
+  var btn = document.getElementById('voiceCountBtn');
+  btn.textContent = '🎤 نگه‌دارید = شمارش';
+  btn.className = 'btn btn-primary';
+  document.getElementById('voiceCountHint').style.display = 'none';
 }
 
 /* Try to auto-match transcript ONLY against already-counted products.
@@ -3540,15 +3618,16 @@ function addProductToSendSession() {
   }
   var pallets = parseInt(document.getElementById('sendPallets').value) || 0;
   var loose = parseInt(document.getElementById('sendLoose').value) || 0;
+  var dayProd = document.getElementById('sendDayProd') ? document.getElementById('sendDayProd').checked : false;
   var total = pallets * cpp + loose;
   if(total === 0) { showToast('تعداد پالت یا پرک را وارد کنید'); return; }
 
   // Always add as separate item (no merging loose with same product)
-  // Only merge if same product AND same loose count is 0 for both
+  // Only merge if same product AND same loose count is 0 for both AND same dayProd
   var merged = false;
   if(loose === 0) {
     for(var i=0;i<sendSessionProducts.length;i++){
-      if(sendSessionProducts[i].prodId === prodId && sendSessionProducts[i].loose === 0) {
+      if(sendSessionProducts[i].prodId === prodId && sendSessionProducts[i].loose === 0 && (sendSessionProducts[i].dayProd||false) === dayProd) {
         sendSessionProducts[i].pallets += pallets;
         sendSessionProducts[i].total += total;
         merged = true;
@@ -3560,7 +3639,7 @@ function addProductToSendSession() {
     sendSessionProducts.push({
       id: Date.now(),
       prodId: prodId, prodName: prodName, prodCode: prodCode, cpp: cpp,
-      pallets: pallets, loose: loose, total: total
+      pallets: pallets, loose: loose, total: total, dayProd: dayProd
     });
   }
 
@@ -3571,6 +3650,7 @@ function addProductToSendSession() {
   document.getElementById('sendLoose').className = 'loose-empty';
   document.getElementById('sendTotalCartons').textContent = '۰';
   document.getElementById('sendCartonInfo').style.display = 'none';
+  if(document.getElementById('sendDayProd')) document.getElementById('sendDayProd').checked = false;
   updateSendPalletDisplay();
   renderSendSessionList();
   showToast(merged ? 'تعداد محصول بروز شد ✓' : 'محصول اضافه شد ✓');
@@ -3592,15 +3672,16 @@ function renderSendSessionList() {
   for(var i=0;i<sendSessionProducts.length;i++){
     var p = sendSessionProducts[i];
     var looseStr = p.loose > 0 ? toPersian(p.loose) + ' پرک' : '۰';
-    html += '<tr style="font-size:18px;"><td>' + toPersian(i+1) + '</td><td style="font-weight:bold;font-size:18px;">' + p.prodName + (p.prodCode ? ' <span style="direction:ltr;color:#2a5a8c;font-weight:bold;">(' + p.prodCode + ')</span>' : '') + '</td><td style="font-weight:bold;font-size:18px;">' + toPersian(p.pallets) + '</td><td style="font-weight:bold;font-size:18px;">' + looseStr + '</td><td style="font-weight:bold;font-size:18px;">' + toPersian(p.total) + '</td><td><button class="btn btn-sm btn-danger" style="font-size:18px;min-width:44px;min-height:44px;" onclick="removeSendSessionProduct(' + p.id + ')">🗑️</button></td></tr>';
+    var dayCell = p.dayProd ? '<span style="color:#28a745;font-size:20px;">✅</span>' : '<span style="color:#999;">—</span>';
+    html += '<tr style="font-size:18px;"><td>' + toPersian(i+1) + '</td><td style="font-weight:bold;font-size:18px;">' + p.prodName + (p.prodCode ? ' <span style="direction:ltr;color:#2a5a8c;font-weight:bold;">(' + p.prodCode + ')</span>' : '') + '</td><td style="font-weight:bold;font-size:18px;">' + toPersian(p.pallets) + '</td><td style="font-weight:bold;font-size:18px;">' + looseStr + '</td><td style="font-weight:bold;font-size:18px;">' + toPersian(p.total) + '</td><td>' + dayCell + '</td><td><button class="btn btn-sm btn-danger" style="font-size:18px;min-width:44px;min-height:44px;" onclick="removeSendSessionProduct(' + p.id + ')">🗑️</button></td></tr>';
     sessionTotal += p.total;
   }
   var sessionEffPallets = 0;
   for(var i=0;i<sendSessionProducts.length;i++){
     sessionEffPallets += calcEffectivePallets(sendSessionProducts[i].pallets, sendSessionProducts[i].loose);
   }
-  html += '<tr style="background:#d4edda;font-weight:bold;"><td colspan="6">جمع کل</td><td>' + toPersian(sessionTotal) + '</td><td></td></tr>';
-  html += '<tr style="background:#c3e6cb;font-weight:bold;"><td colspan="6">مجموع پالت (شامل پرک)</td><td>' + toPersian(sessionEffPallets) + '</td><td></td></tr>';
+  html += '<tr style="background:#d4edda;font-weight:bold;"><td colspan="4">جمع کل</td><td>' + toPersian(sessionTotal) + '</td><td></td><td></td></tr>';
+  html += '<tr style="background:#c3e6cb;font-weight:bold;"><td colspan="4">مجموع پالت (شامل پرک)</td><td>' + toPersian(sessionEffPallets) + '</td><td></td><td></td></tr>';
   tbody.innerHTML = html;
 }
 
@@ -3631,6 +3712,7 @@ function finalizeSendToTahvol() {
       pallets: p.pallets,
       loose: p.loose,
       total: p.total,
+      dayProd: p.dayProd || false,
       date: currentDate,
       time: currentTime,
       status: 'تحویل',
@@ -3685,6 +3767,7 @@ function toPersianTime(t) {
    ============================================= */
 function renderReceivedProducts() {
   var deliveries = loadData(DEL_KEY);
+  var dayProdOnly = document.getElementById('receivedDayProd') ? document.getElementById('receivedDayProd').checked : false;
   var filterDateEl = document.getElementById('receivedDateFilter');
   var filterDate = filterDateEl ? filterDateEl.value : '';
   var viewMode = (window._receivedViewMode === 'cumulative'); /* true=cumulative up to date, false=exact day */
@@ -3734,6 +3817,13 @@ function renderReceivedProducts() {
     }
   }
   window._receivedViewMode = null; /* reset after use */
+
+  /* فیلتر تولید روز */
+  if(dayProdOnly) {
+    var dpF = [];
+    for(var dpi=0;dpi<filtered.length;dpi++){ if(filtered[dpi].dayProd) dpF.push(filtered[dpi]); }
+    filtered = dpF;
+  }
   
   /* Update view mode label */
   var modeLabel = document.getElementById('receivedViewModeLabel');
@@ -3985,7 +4075,8 @@ function dispatchSelected() {
         prodCode: prodsById[pid] ? (prodsById[pid].code || '') : '',
         pallets: takeP,
         loose: takeL,
-        cpp: d.cpp || 0
+        cpp: d.cpp || 0,
+        dayProd: d.dayProd || false
       });
 
       if(d.remainingPallets <= 0 && (typeof d.remainingLoose === 'number' ? d.remainingLoose : d.loose) <= 0) {
@@ -4009,7 +4100,8 @@ function dispatchSelected() {
           prodCode: prodsById[d.prodId] ? (prodsById[d.prodId].code || '') : '',
           pallets: 0,
           loose: dRemL,
-          cpp: d.cpp || 0
+          cpp: d.cpp || 0,
+          dayProd: d.dayProd || false
         });
         d.remainingLoose = 0;
         var dRemP = (typeof d.remainingPallets === 'number') ? d.remainingPallets : d.pallets;
@@ -4132,6 +4224,12 @@ function renderEditProducts() {
 
 function renderEditDeliveries() {
   var deliveries = loadData(DEL_KEY);
+  /* مرتب‌سازی بر اساس تاریخ و ساعت (جدیدترین بالا) */
+  deliveries = deliveries.slice().sort(function(a,b){
+    var da = shamsiToNum(a.date), db = shamsiToNum(b.date);
+    if(da !== db) return db - da;
+    return _timeToMin(b.time) - _timeToMin(a.time);
+  });
   var tbody = document.querySelector('#editDeliveryTable tbody');
   if(deliveries.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="color:#555;">ارسالی ثبت نشده</td></tr>'; return; }
   var html = '';
@@ -4334,6 +4432,14 @@ function renderDashboard() {
     filtDisp = dispatches.slice();
   }
 
+  /* فیلتر تولید روز */
+  var dayProdOnly = document.getElementById('dashDayProd') ? document.getElementById('dashDayProd').checked : false;
+  if(dayProdOnly) {
+    var _fd = [];
+    for(var q=0;q<filtDel.length;q++){ if(filtDel[q].dayProd) _fd.push(filtDel[q]); }
+    filtDel = _fd;
+  }
+
   /* Compute daily aggregates */
   var dailyReceived = {}; /* date -> { totalPallets, totalLoose, totalCartons, products } */
   var dailySent = {}; /* date -> { totalPallets, totalLoose, totalCartons } */
@@ -4359,13 +4465,21 @@ function renderDashboard() {
   for(var j=0;j<filtDisp.length;j++){
     var dp = filtDisp[j];
     var dt2 = dp.dispatchDate;
+    var sP = dp.totalPallets, sL = dp.totalLoose, sC = dp.totalCartons;
+    if(dayProdOnly) {
+      sP = 0; sL = 0; sC = 0;
+      for(var dpp=0;dpp<dp.products.length;dpp++){
+        if(dp.products[dpp].dayProd){ sP += dp.products[dpp].pallets; sL += dp.products[dpp].loose; sC += dp.products[dpp].total; }
+      }
+      if(sP === 0 && sL === 0 && sC === 0) continue;
+    }
     if(!dailySent[dt2]) {
       dailySent[dt2] = { totalPallets: 0, totalLoose: 0, totalCartons: 0 };
       if(dateOrder.indexOf(dt2) === -1) dateOrder.push(dt2);
     }
-    dailySent[dt2].totalPallets += dp.totalPallets;
-    dailySent[dt2].totalLoose += dp.totalLoose;
-    dailySent[dt2].totalCartons += dp.totalCartons;
+    dailySent[dt2].totalPallets += sP;
+    dailySent[dt2].totalLoose += sL;
+    dailySent[dt2].totalCartons += sC;
   }
 
   /* Sort dates */
@@ -4710,6 +4824,9 @@ function generateTahvilReport() {
   var toVal = document.getElementById('reportTo').value;
   var prodFilter = document.getElementById('reportProduct').value;
   var statusFilter = document.getElementById('reportStatus').value;
+  var timeFromV = document.getElementById('reportTimeFrom') ? document.getElementById('reportTimeFrom').value : '';
+  var timeToV = document.getElementById('reportTimeTo') ? document.getElementById('reportTimeTo').value : '';
+  var dayProdOnly = document.getElementById('reportDayProd') ? document.getElementById('reportDayProd').checked : false;
   var deliveries = loadData(DEL_KEY);
   var filtered = [];
   var fromNum = shamsiToNum(fromVal);
@@ -4723,6 +4840,12 @@ function generateTahvilReport() {
     if(toVal && dNum > toNum) ok = false;
     if(prodFilter && String(d.prodId) !== String(prodFilter)) ok = false;
     if(statusFilter && _normalizeStatus(d.itemStatus || d.status) !== statusFilter) ok = false;
+    if(dayProdOnly && !d.dayProd) ok = false;
+    if(ok && (timeFromV || timeToV)) {
+      var dMins = _timeToMin(d.time);
+      if(timeFromV && dMins < _timeToMin(timeFromV)) ok = false;
+      if(timeToV && dMins > _timeToMin(timeToV)) ok = false;
+    }
     if(ok) filtered.push(d);
   }
 
@@ -4866,6 +4989,9 @@ function clearTahvilReportFilter() {
   document.getElementById('reportTo').value = '';
   document.getElementById('reportProduct').value = '';
   document.getElementById('reportStatus').value = '';
+  if(document.getElementById('reportTimeFrom')) document.getElementById('reportTimeFrom').value = '';
+  if(document.getElementById('reportTimeTo')) document.getElementById('reportTimeTo').value = '';
+  if(document.getElementById('reportDayProd')) document.getElementById('reportDayProd').checked = false;
   generateTahvilReport();
 }
 
@@ -4896,6 +5022,7 @@ function generateTahvolReport() {
   var toVal = document.getElementById('tahvolReportTo').value;
   var prodFilter = document.getElementById('tahvolReportProduct').value;
   var vehFilter = document.getElementById('tahvolReportVehicle').value;
+  var dayProdOnly = document.getElementById('tahvolReportDayProd') ? document.getElementById('tahvolReportDayProd').checked : false;
   var dispatches = loadData(DISP_KEY);
   var filtered = [];
   var fromNum = shamsiToNum(fromVal);
@@ -4916,6 +5043,24 @@ function generateTahvolReport() {
       if(!hasProd) ok = false;
     }
     if(ok) filtered.push(d);
+  }
+
+  /* فیلتر تولید روز: فقط محصولات تولید روز را نشان بده */
+  if(dayProdOnly) {
+    var dpFiltered = [];
+    for(var fi=0;fi<filtered.length;fi++){
+      var od = filtered[fi];
+      var np = []; var tP=0,tL=0,tC=0;
+      for(var pj=0;pj<od.products.length;pj++){
+        if(od.products[pj].dayProd){ np.push(od.products[pj]); tP+=od.products[pj].pallets; tL+=od.products[pj].loose; tC+=od.products[pj].total; }
+      }
+      if(np.length>0){
+        var cd = {}; for(var kk in od){ if(od.hasOwnProperty(kk)) cd[kk]=od[kk]; }
+        cd.products = np; cd.totalPallets = tP; cd.totalLoose = tL; cd.totalCartons = tC;
+        dpFiltered.push(cd);
+      }
+    }
+    filtered = dpFiltered;
   }
 
   lastTahvolReportData = filtered;
@@ -4988,6 +5133,7 @@ function clearTahvolReportFilter() {
   document.getElementById('tahvolReportTo').value = '';
   document.getElementById('tahvolReportProduct').value = '';
   document.getElementById('tahvolReportVehicle').value = '';
+  if(document.getElementById('tahvolReportDayProd')) document.getElementById('tahvolReportDayProd').checked = false;
   generateTahvolReport();
 }
 
@@ -5189,6 +5335,10 @@ function exportTahvolExcel() {
       }
       if(!deliveries[i].dispatchLog) {
         deliveries[i].dispatchLog = [];
+        changed = true;
+      }
+      if(typeof deliveries[i].dayProd === 'undefined') {
+        deliveries[i].dayProd = false;
         changed = true;
       }
     }
