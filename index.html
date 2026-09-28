@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مدیریت ارسال کالا v6.23</title>
+<title>مدیریت ارسال کالا v6.24</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d1b2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1063,13 +1063,14 @@ input#sendLoose:focus.loose-empty {
 </style>
 </head>
 <body>
-<div class="sync-indicator" id="syncIndicator">🔄 همگام‌سازی...</div>
+<!-- نشانگر شناور همگام‌سازی حذف شد؛ وضعیت اتصال در سربرگ نمایش داده می‌شود -->
 <div class="notif-banner" id="notifBanner" style="display:none;"></div>
 
 <!-- ============ LOGIN SCREEN ============ -->
 <div class="login-overlay" id="loginScreen">
   <div class="login-title">🚛 مدیریت ارسال کالا</div>
   <div class="login-subtitle">حساب کاربری خود را انتخاب کنید</div>
+  <div style="color:#a5d6a7;font-size:15px;font-weight:bold;margin-bottom:22px;text-align:center;letter-spacing:1px;">نسخه ۶.۲۴</div>
   <div style="text-align:center;margin-bottom:12px;">
     <span class="conn-status" id="connStatusLogin" data-status="offline" style="font-size:13px;">
       <span class="conn-dot"></span>
@@ -1179,6 +1180,21 @@ input#sendLoose:focus.loose-empty {
       <input type="checkbox" id="prodExport" checked>
       <label for="prodExport">صادرات</label>
     </div>
+    <div style="display:flex;gap:8px;">
+      <div class="form-group" style="flex:1;">
+        <label>کنارهم</label>
+        <input type="number" id="prodPerRow" min="0" placeholder="۱۰" oninput="calcProdArrangement()">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>روی‌هم</label>
+        <input type="number" id="prodRows" min="0" placeholder="۱۰" oninput="calcProdArrangement()">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label>تکی</label>
+        <input type="number" id="prodSingles" min="0" placeholder="۰" oninput="calcProdArrangement()">
+      </div>
+    </div>
+    <div style="font-size:12px;color:#666;margin:-6px 0 10px;">کنارهم × روی‌هم + تکی = کارتن/پالت</div>
     <div class="form-group">
       <label>تعداد کارتن در پالت</label>
       <input type="number" id="prodCartons" min="1" placeholder="مثال: 120">
@@ -1196,7 +1212,7 @@ input#sendLoose:focus.loose-empty {
   </div>
   <div class="table-wrapper">
     <table id="productTable">
-      <thead><tr><th>ردیف</th><th>نام محصول</th><th>کد محصول</th><th>کارتن/پالت</th></tr></thead>
+      <thead><tr><th>ردیف</th><th>نام محصول</th><th>کد محصول</th><th>کنارهم</th><th>روی‌هم</th><th>تکی</th><th>کارتن/پالت</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -1270,7 +1286,7 @@ input#sendLoose:focus.loose-empty {
     <div class="summary-box">
       مجموع کارتن: <span id="sendTotalCartons">۰</span>
     </div>
-    <div class="checkbox-group" style="margin-top:12px;">
+    <div class="checkbox-group" style="margin-top:22px;margin-bottom:22px;justify-content:center;">
       <input type="checkbox" id="sendDayProd">
       <label for="sendDayProd">🟢 تولید روز (محصول تولیدشده امروز)</label>
     </div>
@@ -1294,7 +1310,7 @@ input#sendLoose:focus.loose-empty {
   <h3 style="text-align:center;color: #0d1b2a;margin-bottom:14px;">ویرایش و حذف محصولات</h3>
   <div class="table-wrapper">
     <table id="editProductTable">
-      <thead><tr><th>ردیف</th><th>نام محصول</th><th>کد محصول</th><th>کارتن/پالت</th><th>ویرایش</th><th>حذف</th></tr></thead>
+      <thead><tr><th>ردیف</th><th>نام محصول</th><th>کد محصول</th><th>کنارهم</th><th>روی‌هم</th><th>تکی</th><th>کارتن/پالت</th><th>ویرایش</th><th>حذف</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -1880,7 +1896,7 @@ _fieldMaps['dispatches'] = {
   'vehInfo':'veh_info','driverName':'driver_name','vehId':'veh_id',
   'user':'user_role'
 };
-_fieldMaps['products'] = { id: 'id', name: 'name', code: 'code', cartons: 'cartons' };
+_fieldMaps['products'] = { id: 'id', name: 'name', code: 'code', cartons: 'cartons', perRow: 'per_row', rows: 'rows_count', singles: 'singles' };
 _fieldMaps['vehicles'] = {};
 
 /* Reverse maps: snake_case → camelCase */
@@ -2707,7 +2723,28 @@ function saveNewPassword() {
   showToast('رمز عبور تغییر کرد ✓');
 }
 
+function _backfillDeliveryCodes() {
+  /* مهاجرت: برای تحویل‌های قدیمی که کد محصول خالی دارند،
+     کد را از روی محصول (بر اساس prodId) پر می‌کند. نام دست‌نخورده می‌ماند. */
+  try {
+    var products = loadData(PROD_KEY);
+    if(!products || products.length === 0) return;
+    var prodsById = {};
+    for(var i=0;i<products.length;i++){ prodsById[String(products[i].id)] = products[i]; }
+    var deliveries = loadData(DEL_KEY);
+    var changed = false;
+    for(var d=0;d<deliveries.length;d++){
+      if(!deliveries[d].prodCode) {
+        var p = prodsById[String(deliveries[d].prodId)];
+        if(p && p.code) { deliveries[d].prodCode = p.code; changed = true; }
+      }
+    }
+    if(changed) saveData(DEL_KEY, deliveries);
+  } catch(e) { console.error('backfill codes failed', e); }
+}
+
 function initApp() {
+  _backfillDeliveryCodes();
   document.getElementById('headerUserBadge').textContent = currentUser === 'تحویل' ? '📤 تحویل' : '🚛 تحول';
   if(currentUser === 'تحویل') {
     document.getElementById('tabBarTahvil').style.display = 'flex';
@@ -2830,10 +2867,23 @@ function showNotificationBanner(msg, isDisp) {
 /* =============================================
    PRODUCTS (تحویل only)
    ============================================= */
+function calcProdArrangement() {
+  var pr = parseInt(document.getElementById('prodPerRow').value) || 0;
+  var rw = parseInt(document.getElementById('prodRows').value) || 0;
+  var sg = parseInt(document.getElementById('prodSingles').value) || 0;
+  if(pr > 0 || rw > 0 || sg > 0) {
+    document.getElementById('prodCartons').value = pr * rw + sg;
+  }
+}
+
 function saveProduct() {
   var name = document.getElementById('prodName').value.trim();
   var code = document.getElementById('prodCode').value.trim();
   var cartons = parseInt(document.getElementById('prodCartons').value);
+  var perRow = parseInt(document.getElementById('prodPerRow').value) || 0;
+  var rows = parseInt(document.getElementById('prodRows').value) || 0;
+  var singles = parseInt(document.getElementById('prodSingles').value) || 0;
+  if(perRow > 0 && rows > 0) cartons = perRow * rows + singles;
   var isExport = document.getElementById('prodExport').checked;
   if(!name) { showToast('نام محصول را وارد کنید'); return; }
   if(!cartons || cartons < 1) { showToast('تعداد کارتن را وارد کنید'); return; }
@@ -2854,14 +2904,17 @@ function saveProduct() {
       if(_normName(products[i].name) === nExport) { showToast('⚠️ محصول صادرات با این نام قبلا ثبت شده'); return; }
     }
   }
-  products.push({id: Date.now(), name: newName, code: code, cartons: cartons});
+  products.push({id: Date.now(), name: newName, code: code, cartons: cartons, perRow: perRow, rows: rows, singles: singles});
   if(isExport) {
-    products.push({id: Date.now() + 1, name: exportName, code: exportCode, cartons: cartons});
+    products.push({id: Date.now() + 1, name: exportName, code: exportCode, cartons: cartons, perRow: perRow, rows: rows, singles: singles});
   }
   saveData(PROD_KEY, products);
   document.getElementById('prodName').value = '';
   document.getElementById('prodCode').value = '';
   document.getElementById('prodCartons').value = '';
+  document.getElementById('prodPerRow').value = '';
+  document.getElementById('prodRows').value = '';
+  document.getElementById('prodSingles').value = '';
   document.getElementById('prodExport').checked = true;
   renderProductTable();
   showToast('محصول ذخیره شد ✓' + (isExport ? ' (همراه صادرات)' : ''));
@@ -2882,11 +2935,14 @@ function renderProductTable() {
     products = flt;
   }
   var tbody = document.querySelector('#productTable tbody');
-  if(products.length === 0) { tbody.innerHTML = '<tr><td colspan="4" style="color:#555;">محصولی ثبت نشده</td></tr>'; return; }
+  if(products.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="color:#555;">محصولی ثبت نشده</td></tr>'; return; }
   var html = '';
   for(var i=0;i<products.length;i++){
     var codeStr = products[i].code ? products[i].code : '—';
-    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + products[i].name + '</td><td style="direction:ltr;text-align:center;color:#2a5a8c;font-weight:bold;">' + codeStr + '</td><td>' + toPersian(products[i].cartons) + '</td></tr>';
+    var pr = products[i].perRow ? toPersian(products[i].perRow) : '—';
+    var rw = products[i].rows ? toPersian(products[i].rows) : '—';
+    var sg = (products[i].singles || products[i].singles === 0) && products[i].perRow ? toPersian(products[i].singles || 0) : '—';
+    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + products[i].name + '</td><td style="direction:ltr;text-align:center;color:#2a5a8c;font-weight:bold;">' + codeStr + '</td><td>' + pr + '</td><td>' + rw + '</td><td>' + sg + '</td><td>' + toPersian(products[i].cartons) + '</td></tr>';
   }
   tbody.innerHTML = html;
 }
@@ -2915,12 +2971,12 @@ function exportProductsExcel() {
     return;
   }
   var rows = [];
-  rows.push(['ردیف', 'نام محصول', 'کد محصول', 'کارتن/پالت']);
+  rows.push(['ردیف', 'نام محصول', 'کد محصول', 'کارتن/پالت', 'کنارهم', 'روی‌هم', 'تکی']);
   for(var i = 0; i < products.length; i++) {
-    rows.push([i + 1, products[i].name, products[i].code || '', products[i].cartons]);
+    rows.push([i + 1, products[i].name, products[i].code || '', products[i].cartons, products[i].perRow || '', products[i].rows || '', products[i].singles || '']);
   }
   var ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:6},{wch:24},{wch:14},{wch:14}];
+  ws['!cols'] = [{wch:6},{wch:24},{wch:14},{wch:14},{wch:10},{wch:10},{wch:10}];
   if(!ws['!sheetViews']) ws['!sheetViews'] = [{}];
   ws['!sheetViews'][0].rightToLeft = true;
   var wb = XLSX.utils.book_new();
@@ -2964,13 +3020,17 @@ function importProductsExcel(input) {
         var name = String(row[1] || '').trim();
         var code = String(row[2] || '').trim();
         var cartons = parseInt(row[3]) || 0;
+        var perRow = parseInt(row[4]) || 0;
+        var rows = parseInt(row[5]) || 0;
+        var singles = parseInt(row[6]) || 0;
+        if(perRow > 0 && rows > 0) cartons = perRow * rows + singles;
         if(!name) continue;
         if(cartons < 1) cartons = 1;
         if(existingNames[name]) {
           skipped++;
           continue;
         }
-        existing.push({id: Date.now() + r, name: name, code: code, cartons: cartons});
+        existing.push({id: Date.now() + r, name: name, code: code, cartons: cartons, perRow: perRow, rows: rows, singles: singles});
         existingNames[name] = true;
         added++;
       }
@@ -3874,7 +3934,7 @@ function renderReceivedProducts() {
   aggOrder.sort(function(a,b){ return (agg[a].prodName || '').localeCompare(agg[b].prodName || '', 'fa'); });
   
   var tbody = document.querySelector('#receivedProductTable tbody');
-  if(aggOrder.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="color:#555;">محصولی از تحویل دریافت نشده</td></tr>'; return; }
+  if(aggOrder.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="color:#555;">محصولی از تحویل دریافت نشده</td></tr>'; return; }
   var html = '';
   var grandPallets = 0; var grandLoose = 0; var grandCartons = 0; var grandEff = 0;
   for(var i=0;i<aggOrder.length;i++){
@@ -3882,10 +3942,10 @@ function renderReceivedProducts() {
     var eff = calcEffectivePallets(a.totalPallets, a.totalLoose);
     grandPallets += a.totalPallets; grandLoose += a.totalLoose; grandCartons += a.totalCartons; grandEff += eff;
     var countBadge = a.dispatchCount > 1 ? ' <span style="background:#e2e3e5;padding:1px 6px;border-radius:8px;font-size:11px;margin-right:4px;">(' + toPersian(a.dispatchCount) + ' بار)</span>' : '';
-    var codeBadge = a.prodCode ? ' <span style="direction:ltr;color:#2a5a8c;font-weight:bold;">(' + a.prodCode + ')</span>' : '';
-    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + a.prodName + codeBadge + countBadge + '</td><td>' + toPersian(a.totalPallets) + '</td><td>' + toPersian(a.totalLoose) + '</td><td>' + toPersian(a.totalCartons) + '</td><td>' + toPersian(eff) + '</td></tr>';
+    var codeCell = a.prodCode ? '<span style="direction:ltr;color:#2a5a8c;font-weight:bold;">' + a.prodCode + '</span>' : '—';
+    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + a.prodName + countBadge + '</td><td style="direction:ltr;text-align:center;">' + codeCell + '</td><td>' + toPersian(a.totalPallets) + '</td><td>' + toPersian(a.totalLoose) + '</td><td>' + toPersian(a.totalCartons) + '</td><td>' + toPersian(eff) + '</td></tr>';
   }
-  html += '<tr style="background:#d4edda;font-weight:bold;"><td colspan="2">جمع کل</td><td>' + toPersian(grandPallets) + '</td><td>' + toPersian(grandLoose) + '</td><td>' + toPersian(grandCartons) + '</td><td>' + toPersian(grandEff) + '</td></tr>';
+  html += '<tr style="background:#d4edda;font-weight:bold;"><td colspan="3">جمع کل</td><td>' + toPersian(grandPallets) + '</td><td>' + toPersian(grandLoose) + '</td><td>' + toPersian(grandCartons) + '</td><td>' + toPersian(grandEff) + '</td></tr>';
   tbody.innerHTML = html;
 }
 
@@ -4225,11 +4285,14 @@ function renderEditProducts() {
   var products = loadData(PROD_KEY);
   products.sort(function(a,b){ return a.name.localeCompare(b.name, 'fa'); });
   var tbody = document.querySelector('#editProductTable tbody');
-  if(products.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="color:#555;">محصولی ثبت نشده</td></tr>'; return; }
+  if(products.length === 0) { tbody.innerHTML = '<tr><td colspan="9" style="color:#555;">محصولی ثبت نشده</td></tr>'; return; }
   var html = '';
   for(var i=0;i<products.length;i++){
     var codeStr = products[i].code ? products[i].code : '—';
-    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + products[i].name + '</td><td style="direction:ltr;text-align:center;color:#2a5a8c;font-weight:bold;">' + codeStr + '</td><td>' + toPersian(products[i].cartons) + '</td><td><button class="btn btn-sm btn-warning" onclick="openEditProduct(' + products[i].id + ')">✏️</button></td><td><button class="btn btn-sm btn-danger" onclick="deleteProductEdit(' + products[i].id + ')">🗑️</button></td></tr>';
+    var pr = products[i].perRow ? toPersian(products[i].perRow) : '—';
+    var rw = products[i].rows ? toPersian(products[i].rows) : '—';
+    var sg = products[i].perRow ? toPersian(products[i].singles || 0) : '—';
+    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + products[i].name + '</td><td style="direction:ltr;text-align:center;color:#2a5a8c;font-weight:bold;">' + codeStr + '</td><td>' + pr + '</td><td>' + rw + '</td><td>' + sg + '</td><td>' + toPersian(products[i].cartons) + '</td><td><button class="btn btn-sm btn-warning" onclick="openEditProduct(' + products[i].id + ')">✏️</button></td><td><button class="btn btn-sm btn-danger" onclick="deleteProductEdit(' + products[i].id + ')">🗑️</button></td></tr>';
   }
   tbody.innerHTML = html;
 }
@@ -4315,8 +4378,17 @@ function openEditProduct(id) {
   if(!p) return;
   var isExport = p.name.indexOf('صادرات') >= 0;
   document.getElementById('editModalTitle').textContent = 'ویرایش محصول';
-  document.getElementById('editModalBody').innerHTML = '<div class="form-group"><label>نام محصول</label><input type="text" id="editProdName" value="' + p.name + '"></div><div class="form-group"><label>کد محصول</label><input type="text" id="editProdCode" value="' + (p.code||'') + '" style="direction:ltr;text-align:left;"></div><div class="form-group"><label>کارتن/پالت</label><input type="number" id="editProdCartons" value="' + p.cartons + '" min="1"></div>';
+  document.getElementById('editModalBody').innerHTML = '<div class="form-group"><label>نام محصول</label><input type="text" id="editProdName" value="' + p.name + '"></div><div class="form-group"><label>کد محصول</label><input type="text" id="editProdCode" value="' + (p.code||'') + '" style="direction:ltr;text-align:left;"></div><div style="display:flex;gap:8px;"><div class="form-group" style="flex:1;"><label>کنارهم</label><input type="number" id="editProdPerRow" min="0" value="' + (p.perRow||'') + '" oninput="calcEditProdArrangement()"></div><div class="form-group" style="flex:1;"><label>روی‌هم</label><input type="number" id="editProdRows" min="0" value="' + (p.rows||'') + '" oninput="calcEditProdArrangement()"></div><div class="form-group" style="flex:1;"><label>تکی</label><input type="number" id="editProdSingles" min="0" value="' + (p.singles||'') + '" oninput="calcEditProdArrangement()"></div></div><div class="form-group"><label>کارتن/پالت</label><input type="number" id="editProdCartons" value="' + p.cartons + '" min="1"></div>';
   document.getElementById('editModal').style.display = 'block';
+}
+
+function calcEditProdArrangement() {
+  var pr = parseInt(document.getElementById('editProdPerRow').value) || 0;
+  var rw = parseInt(document.getElementById('editProdRows').value) || 0;
+  var sg = parseInt(document.getElementById('editProdSingles').value) || 0;
+  if(pr > 0 || rw > 0 || sg > 0) {
+    document.getElementById('editProdCartons').value = pr * rw + sg;
+  }
 }
 
 function openEditVehicle(id) {
@@ -4341,7 +4413,7 @@ function openEditDelivery(id) {
   var products = loadData(PROD_KEY);
   var prodOpts = '';
   for(var j=0;j<products.length;j++){
-    prodOpts += '<option value="' + products[j].id + '" data-cpp="' + products[j].cartons + '" data-code="' + (products[j].code||'') + '"' + (products[j].id === d.prodId ? ' selected' : '') + '>' + products[j].name + (products[j].code ? ' (' + products[j].code + ')' : '') + '</option>';
+    prodOpts += '<option value="' + products[j].id + '" data-cpp="' + products[j].cartons + '" data-code="' + (products[j].code||'') + '" data-name="' + products[j].name + '"' + (products[j].id === d.prodId ? ' selected' : '') + '>' + products[j].name + (products[j].code ? ' (' + products[j].code + ')' : '') + '</option>';
   }
   document.getElementById('editModalTitle').textContent = 'ویرایش ارسال';
   document.getElementById('editModalBody').innerHTML =
@@ -4356,10 +4428,14 @@ function saveEdit() {
     var name = document.getElementById('editProdName').value.trim();
     var code = document.getElementById('editProdCode').value.trim();
     var cartons = parseInt(document.getElementById('editProdCartons').value);
+    var perRow = parseInt(document.getElementById('editProdPerRow').value) || 0;
+    var rows = parseInt(document.getElementById('editProdRows').value) || 0;
+    var singles = parseInt(document.getElementById('editProdSingles').value) || 0;
+    if(perRow > 0 && rows > 0) cartons = perRow * rows + singles;
     if(!name || !cartons || cartons < 1) { showToast('اطلاعات نامعتبر'); return; }
     var products = loadData(PROD_KEY);
     for(var i=0;i<products.length;i++){
-      if(products[i].id === editId) { products[i].name = name; products[i].code = code; products[i].cartons = cartons; break; }
+      if(products[i].id === editId) { products[i].name = name; products[i].code = code; products[i].cartons = cartons; products[i].perRow = perRow; products[i].rows = rows; products[i].singles = singles; break; }
     }
     saveData(PROD_KEY, products);
     renderProductTable();
@@ -4383,7 +4459,7 @@ function saveEdit() {
     var prodSel = document.getElementById('editDelProduct');
     var newProdId = parseInt(prodSel.value);
     var newCpp = parseInt(prodSel.options[prodSel.selectedIndex].getAttribute('data-cpp'));
-    var newProdName = prodSel.options[prodSel.selectedIndex].text;
+    var newProdName = prodSel.options[prodSel.selectedIndex].getAttribute('data-name') || prodSel.options[prodSel.selectedIndex].text;
     var newProdCode = prodSel.options[prodSel.selectedIndex].getAttribute('data-code') || '';
     var newPallets = parseInt(document.getElementById('editDelPallets').value) || 0;
     var newLoose = parseInt(document.getElementById('editDelLoose').value) || 0;
