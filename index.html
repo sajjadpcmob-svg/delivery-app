@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مدیریت ارسال کالا v6.24</title>
+<title>مدیریت ارسال کالا v6.25</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0d1b2a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1070,7 +1070,7 @@ input#sendLoose:focus.loose-empty {
 <div class="login-overlay" id="loginScreen">
   <div class="login-title">🚛 مدیریت ارسال کالا</div>
   <div class="login-subtitle">حساب کاربری خود را انتخاب کنید</div>
-  <div style="color:#a5d6a7;font-size:15px;font-weight:bold;margin-bottom:22px;text-align:center;letter-spacing:1px;">نسخه ۶.۲۴</div>
+  <div style="color:#a5d6a7;font-size:15px;font-weight:bold;margin-bottom:22px;text-align:center;letter-spacing:1px;">نسخه ۶.۲۵</div>
   <div style="text-align:center;margin-bottom:12px;">
     <span class="conn-status" id="connStatusLogin" data-status="offline" style="font-size:13px;">
       <span class="conn-dot"></span>
@@ -4313,7 +4313,7 @@ function renderEditDeliveries() {
     var ist = _normalizeStatus(d.itemStatus || d.status);
     var statusClass = ist === 'ارسال' ? 'status-dispatched' : (ist === 'بررسی' ? 'status-check' : 'status-delivered');
     var editBtn = (ist === 'ارسال') ? '<span style="color:#666;">—</span>' : '<button class="btn btn-sm btn-warning" onclick="openEditDelivery(' + d.id + ')">✏️</button>';
-    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + d.prodName + (d.prodCode ? ' <span style="direction:ltr;color:#2a5a8c;font-weight:bold;">(' + d.prodCode + ')</span>' : '') + '</td><td>' + d.date + '</td><td>' + toPersian(d.time) + '</td><td>' + toPersian(d.pallets) + '</td><td>' + toPersian(d.loose) + '</td><td>' + toPersian(d.total) + '</td><td><span class="status-badge ' + statusClass + '">' + ist + '</span></td><td>' + editBtn + '</td><td><button class="btn btn-sm btn-danger" onclick="deleteDelivery(' + d.id + ')">🗑️</button></td></tr>';
+    html += '<tr><td>' + toPersian(i+1) + '</td><td>' + d.prodName + (d.prodCode ? ' <span style="direction:ltr;color:#2a5a8c;font-weight:bold;">(' + d.prodCode + ')</span>' : '') + (d.dayProd ? ' <span style="background:#d4edda;color:#155724;padding:1px 6px;border-radius:8px;font-size:11px;">🟢 تولید روز</span>' : '') + '</td><td>' + d.date + '</td><td>' + toPersian(d.time) + '</td><td>' + toPersian(d.pallets) + '</td><td>' + toPersian(d.loose) + '</td><td>' + toPersian(d.total) + '</td><td><span class="status-badge ' + statusClass + '">' + ist + '</span></td><td>' + editBtn + '</td><td><button class="btn btn-sm btn-danger" onclick="deleteDelivery(' + d.id + ')">🗑️</button></td></tr>';
   }
   tbody.innerHTML = html;
 }
@@ -4419,7 +4419,8 @@ function openEditDelivery(id) {
   document.getElementById('editModalBody').innerHTML =
     '<div class="form-group"><label>محصول</label><select id="editDelProduct">' + prodOpts + '</select></div>' +
     '<div style="display:flex;gap:10px;"><div class="form-group" style="flex:1;"><label>تعداد پالت</label><input type="number" id="editDelPallets" value="' + d.pallets + '" min="0"></div>' +
-    '<div class="form-group" style="flex:1;"><label>کارتن پرک</label><input type="number" id="editDelLoose" value="' + d.loose + '" min="0"></div></div>';
+    '<div class="form-group" style="flex:1;"><label>کارتن پرک</label><input type="number" id="editDelLoose" value="' + d.loose + '" min="0"></div></div>' +
+    '<div class="checkbox-group" style="margin-top:6px;"><input type="checkbox" id="editDelDayProd"' + (d.dayProd ? ' checked' : '') + '><label for="editDelDayProd">🟢 تولید روز (محصول تولیدشده امروز)</label></div>';
   document.getElementById('editModal').style.display = 'block';
 }
 
@@ -4474,6 +4475,7 @@ function saveEdit() {
         deliveries[i].pallets = newPallets;
         deliveries[i].loose = newLoose;
         deliveries[i].total = newTotal;
+        deliveries[i].dayProd = document.getElementById('editDelDayProd').checked;
         break;
       }
     }
